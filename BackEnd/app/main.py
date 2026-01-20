@@ -1,3 +1,5 @@
+from typing import Optional
+
 from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -11,14 +13,21 @@ app = FastAPI(
     description="API do trabalho final (FastAPI). Rotas GET em JSON para consumo via fetch no frontend.",
 )
 
-# CORS: libera o frontend abrir a API no navegador
+# ✅ CORS: libera seu front na Vercel
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # para trabalho acadêmico ok; em produção, restrinja
-    allow_credentials=True,
-    allow_methods=["*"],
+    allow_origins=[
+        "https://guia-saude-front-end.vercel.app",
+     
+    ],
+    allow_credentials=False,
+    allow_methods=["GET", "OPTIONS"],
     allow_headers=["*"],
 )
+
+@app.get("/")
+def root():
+    return {"message": "Guia Saúde API - online"}
 
 @app.get("/api/health")
 def health():
@@ -37,8 +46,8 @@ def obter_orientacoes():
 # Rota 3: unidades (com filtros opcionais)
 @app.get("/api/unidades")
 def listar_unidades(
-    tipo: str | None = Query(default=None, description="ubs | upa | hospital"),
-    q: str | None = Query(default=None, description="busca por nome/bairro/endereço"),
+    tipo: Optional[str] = Query(default=None, description="ubs | upa | hospital"),
+    q: Optional[str] = Query(default=None, description="busca por nome/bairro/endereço"),
 ):
     results = UNIDADES
 
@@ -48,6 +57,7 @@ def listar_unidades(
 
     if q:
         q_norm = q.strip().lower()
+
         def haystack(u):
             return f"{u.get('nome','')} {u.get('bairro','')} {u.get('endereco','')}".lower()
 
