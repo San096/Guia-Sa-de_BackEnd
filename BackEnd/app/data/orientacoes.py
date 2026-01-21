@@ -1,13 +1,46 @@
-ORIENTACOES = {
-    "sinaisAlerta": ["falta_ar", "dor_peito", "desmaio_confusao"],
-    "mensagens": {
-        "emergencia": "Procure atendimento imediato (UPA/Hospital). Se possível, peça ajuda e não dirija se estiver mal.",
-        "upa": "Procure uma UPA/atendimento de urgência para avaliação em tempo curto.",
-        "ubs": "Procure uma UBS/atenção primária para avaliação e orientações.",
+ORIENTACOES = [
+    # ----------- ALERTA GRAVE -----------
+    {
+        "id": "emergencia",
+        "sintomas": [
+            "falta_ar",
+            "dor_peito",
+            "desmaio_confusao",
+        ],
+        "mensagem": "Procure imediatamente uma UPA ou hospital.",
+        "tiposPermitidos": ["upa", "hospital"],
+        "prioridade": 10,
     },
-    "dicasGerais": [
-        "Mantenha hidratação (se tolerado).",
-        "Descanse e observe evolução dos sintomas.",
-        "Se piorar, procure atendimento.",
-    ],
-}
+
+    # ----------- SAÚDE MENTAL / CAPS -----------
+    {
+        "id": "caps",
+        "sintomas": [
+            "ansiedade_intensa",
+            "depressao",
+            "insônia_grave",
+            "ideacao_suicida",
+            "surto_psicotico",
+        ],
+        "mensagem": "Procure um CAPS para atendimento especializado em saúde mental.",
+        "tiposPermitidos": ["caps"],
+        "prioridade": 8,
+    },
+
+    # ----------- CASOS GERAIS -----------
+    {
+        "id": "geral",
+        "sintomas": [
+            "febre",
+            "tosse",
+            "dor_garganta",
+            "dor_cabeca",
+            "vomitos",
+            "diarreia",
+            "dor_abdominal_intensa",
+        ],
+        "mensagem": "Procure uma Unidade Básica de Saúde (UBS).",
+        "tiposPermitidos": ["ubs"],
+        "prioridade": 3,
+    },
+]

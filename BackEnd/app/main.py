@@ -77,8 +77,8 @@ def _guess_nome(soup: BeautifulSoup) -> Optional[str]:
     return None
 
 
-def _infer_tipo(nome: str, endereco: Optional[str], page_text: str) -> str:
-    hay = " ".join([nome or "", endereco or "", page_text or ""]).upper()
+def _infer_tipo(nome: str, endereco: str | None, page_text: str) -> str:
+    hay = f"{nome} {endereco or ''} {page_text}".upper()
 
     if "CAPS" in hay:
         return "caps"
@@ -90,6 +90,7 @@ def _infer_tipo(nome: str, endereco: Optional[str], page_text: str) -> str:
         return "ubs"
 
     return "ubs"
+
 
 
 def _extract_bairro_from_endereco(endereco: Optional[str]) -> Optional[str]:
