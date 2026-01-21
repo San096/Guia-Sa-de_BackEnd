@@ -79,13 +79,16 @@ def _guess_nome(soup: BeautifulSoup) -> Optional[str]:
 
 def _infer_tipo(nome: str, endereco: Optional[str], page_text: str) -> str:
     hay = " ".join([nome or "", endereco or "", page_text or ""]).upper()
+
+    if "CAPS" in hay:
+        return "caps"
     if "UPA" in hay:
         return "upa"
     if "HOSPITAL" in hay:
         return "hospital"
-    # UBS / Posto / Unidade Básica
     if "UBS" in hay or "POSTO" in hay or "UNIDADE BASICA" in hay or "UNIDADE BÁSICA" in hay:
         return "ubs"
+
     return "ubs"
 
 
