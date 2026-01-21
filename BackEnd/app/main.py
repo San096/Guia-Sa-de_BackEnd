@@ -9,11 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.data.sintomas import SINTOMAS
 from app.data.orientacoes import ORIENTACOES
-
-# ✅ Opcional: manter como fallback (recomendado)
-# Se você NÃO quiser fallback, pode remover este import e as referências a FALLBACK_UNIDADES.
-from app.data.unidades import UNIDADES as FALLBACK_UNIDADES
-
+from fastapi import HTTPException
 
 app = FastAPI(
     title="Guia Saúde API",
@@ -117,50 +113,81 @@ def _extract_bairro_from_endereco(endereco: Optional[str]) -> Optional[str]:
     return cand
 
 
-def _scrape_ids() -> List[int]:
+def _scrape_list_unidades() -> List[Dict[str, Any]]:
     soup = _fetch_soup(LIST_URL)
-    ids = set()
 
+    # links do NOME (ignora os links "VISUALIZAR")
+    anchors = []
     for a in soup.select('a[href*="unidadesaude.php?id="]'):
+        txt = a.get_text(" ", strip=True)
+        if not txt:
+            continue
+        if txt.strip().upper() == "VISUALIZAR":
+            continue
+        anchors.append(a)
+
+    unidades: List[Dict[str, Any]] = []
+
+    for a in anchors:
         href = a.get("href", "")
         m = re.search(r"id=(\d+)", href)
-        if m:
-            ids.add(int(m.group(1)))
+        if not m:
+            continue
+        uid = int(m.group(1))
 
-    return sorted(ids)
+        nome = a.get_text(" ", strip=True)
+        texts: List[str] = []
 
+        # pega os textos depois do nome ATÉ chegar no próximo nome
+        for el in a.next_elements:
+            # se achou outro link de unidade (nome), para
+            if getattr(el, "name", None) == "a":
+                t = el.get_text(" ", strip=True)
+                h = el.get("href", "")
+                if t and t.upper() != "VISUALIZAR" and "unidadesaude.php?id=" in h:
+                    break
 
-def _scrape_detail(unit_id: int) -> Dict[str, Any]:
-    url = DETAIL_URL.format(id=unit_id)
-    soup = _fetch_soup(url)
+            if isinstance(el, str):
+                t = el.strip()
+                if t:
+                    texts.append(re.sub(r"\s+", " ", t))
 
-    nome = _guess_nome(soup) or f"Unidade {unit_id}"
-    page_text = soup.get_text(" ", strip=True)
+        block = " ".join(texts)
 
-    endereco = _extract_first_text_after_label(soup, r"Informações de endereço")
-    horario = _extract_first_text_after_label(soup, r"Horário de funcionamento")
+        # heurísticas simples pra achar os campos dentro do bloco
+        endereco = next(
+            (t for t in texts if re.search(r"(RUA|AV\.?|AVENIDA|TRAV|VILA|SÍTIO|SITIO|LOTEAMENTO|BR|CE\s*\d|ZONA)", t, re.I)),
+            None,
+        )
+        horario = next(
+            (t for t in texts if re.search(r"(SEG|SEGUNDA|TER|QUARTA|QUINTA|SEX|SÁB|SAB|DOM|24\s*H|SEMPRE ABERTO)", t, re.I)),
+            None,
+        )
+        email = next((t for t in texts if "@" in t), None)
+        if email and "não informado" in email.lower():
+            email = None
 
-    tipo = _infer_tipo(nome, endereco, page_text)
-    bairro = _extract_bairro_from_endereco(endereco)
+        bairro = _extract_bairro_from_endereco(endereco)
+        tipo = _infer_tipo(nome, endereco, block)
 
-    return {
-        "id": unit_id,
-        "nome": nome,
-        "tipo": tipo,           # ubs | upa | hospital
-        "endereco": endereco,
-        "bairro": bairro,
-        "horario": horario,
-        "telefone": None,
-        "email": None,
-        "fonteUrl": url,
-    }
+        unidades.append(
+            {
+                "id": uid,
+                "nome": nome,
+                "tipo": tipo,           # ubs | upa | hospital
+                "endereco": endereco,
+                "bairro": bairro,
+                "horario": horario,
+                "telefone": None,
+                "email": email,
+                "fonteUrl": DETAIL_URL.format(id=uid),
+            }
+        )
+
+    return unidades
 
 
 def get_unidades_scraped() -> List[Dict[str, Any]]:
-    """
-    Retorna unidades via scraping com cache (TTL).
-    Se falhar, usa fallback (se existir).
-    """
     global _unidades_cache, _cache_ts
 
     now = time.time()
@@ -168,21 +195,18 @@ def get_unidades_scraped() -> List[Dict[str, Any]]:
         return _unidades_cache
 
     try:
-        ids = _scrape_ids()
-        unidades: List[Dict[str, Any]] = []
+        unidades = _scrape_list_unidades()
 
-        # raspa cada detalhe (com pausa pequena pra não sobrecarregar)
-        for i, uid in enumerate(ids, start=1):
-            unidades.append(_scrape_detail(uid))
-            time.sleep(0.35)
+       
+        if len(unidades) < 10:
+            raise RuntimeError(f"Scraping retornou poucas unidades: {len(unidades)}")
 
         _unidades_cache = unidades
         _cache_ts = now
         return unidades
 
-    except Exception:
-        # ✅ fallback (se você quiser 100% SEM fallback, remova isso e "raise")
-        return FALLBACK_UNIDADES
+    except Exception as e:
+        raise HTTPException(status_code=503, detail=f"Falha ao raspar unidades: {e}")
 
 
 @app.get("/")
@@ -228,3 +252,4 @@ def listar_unidades(
         results = [u for u in results if q_norm in haystack(u)]
 
     return results
+
